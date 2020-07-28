@@ -14,6 +14,7 @@ class App(Engine):
                 - better walking.
         """
         super(App, self).__init__(self)
+
         self._init_components()
         self.run()
 

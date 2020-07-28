@@ -1,23 +1,30 @@
-from ursina import camera, Entity, color, mouse, held_keys, clamp, raycast, time
+from ursina import Entity, held_keys, raycast, time, LVector3f, Vec3
 
 
 class Player(Entity):
-    def __init__(self):
+    def __init__(self, app):
         super().__init__()
-        self.speed = 3
+        self.app = app
 
-        self.direction, self.__is_jumping = None, False
+        # Speed attributes
+        self.__movement_speed = 3
+
+        # Jumping objects
+        self.__is_jumping = False
+        self.__is_falling = False
+        self.__start_jump = Vec3(0, 0, 0)
+
+        # Movement objects
+        self.direction = LVector3f(0, 0, 0)
+
+        # Graphical objects
+        self.graphics = self.__set_player_model()
+
+        # Update counter
         self.i = 0
         self.update_interval = 30
-        self.graphics = self.__set_player_model()
-        camera.parent = self
 
         self.position = (0, 0, 1)
-
-        camera.rotation = (0, 0, 0)
-        camera.position = (0, 1.5, 0)
-        camera.fov = 90
-        mouse.locked = True
 
     def __set_player_model(self):
         return Entity(
@@ -33,29 +40,38 @@ class Player(Entity):
             self.i += 1
             return
 
-        # Walk forwards/backwards
-        self.direction = self.__get_direction()
+        self.__get_movement()
         self.__get_jump()
 
-    def __get_direction(self):
-        return (
+    def __get_movement(self):
+        self.direction = (
                 self.forward * (held_keys['z'] - held_keys['s'])
                 + self.right * (held_keys['d'] - held_keys['q'])
         )
+        
+        if not raycast(self.world_position + self.up, self.direction, .5).hit:
+            self.position += self.direction * self.__movement_speed * time.dt
 
     def __get_jump(self):
-        if not raycast(self.world_position + self.up, self.direction, .5).hit:
-            self.position += self.direction * self.speed * time.dt
-
-        self.rotation_y += mouse.velocity[0] * 30
-        camera.rotation_x -= mouse.velocity[1] * 40
-
-        camera.rotation_x = clamp(camera.rotation_x, -90, 90)
-
-        if held_keys['a'] and not self.__is_jumping:
-            self.y += held_keys['a']
+        if held_keys['space'] and not self.__is_falling:
             self.__is_jumping = True
-        else:
-            if self.__is_jumping:
-                print("player is jumping")
+        elif self.__is_jumping and not held_keys["space"]:
+            self.__is_falling = True
+
+        jump_speed = 4
+        if self.__is_falling:
+            for pos in self.app.world.tile_positions:
+                if self.y < 0 or raycast(self.position, pos).hit:
+                    self.__is_falling = False
+                    self.__is_jumping = False
+                else:
+                    self.y -= jump_speed/10 * time.dt
+            return
+
+        if self.__is_jumping:
+            if self.y >= self.__start_jump[1]+0.5:
+                self.__is_falling = True
+            else:
+                self.y += jump_speed*time.dt
+
 
